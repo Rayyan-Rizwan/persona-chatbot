@@ -1,6 +1,9 @@
 import os
 import streamlit as st
 from dotenv import load_dotenv
+
+# Ensure all message types are imported
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langchain_groq import ChatGroq
 
 load_dotenv()
