@@ -207,19 +207,15 @@ PERSONAS = {
 
 
 # ---------------- Cached model ----------------
-# Pass Streamlit secret to os.environ and explicit API key parameter
-# Extract API key safely from Streamlit secrets or local environment
+# Extract key from Streamlit secrets or local environment
 groq_key = st.secrets.get("GROQ_API_KEY") or os.getenv("GROQ_API_KEY")
-if groq_key:
-    os.environ["GROQ_API_KEY"] = groq_key
 
 
 # ---------------- Cached Model ----------------
 @st.cache_resource
 def get_model():
-    groq_key = st.secrets.get("GROQ_API_KEY") or os.getenv("GROQ_API_KEY")
     return ChatGroq(
-        model="llama-3.3-70b-versatile",
+        model="llama-3.3-70b-versatile",  # Exact valid model ID
         temperature=0.7,
         api_key=groq_key,
     )
