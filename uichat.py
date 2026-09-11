@@ -1,13 +1,19 @@
-import streamlit as st
 import os
 from dotenv import load_dotenv
 from langchain.chat_models import init_chat_model
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
+import streamlit as st
 
 load_dotenv()
 
+# --- Pass Streamlit secret key to os.environ for LangChain ---
+if "GROQ_API_KEY" in st.secrets:
+  os.environ["GROQ_API_KEY"] = st.secrets["GROQ_API_KEY"]
+
 # ---------------- Page config ----------------
-st.set_page_config(page_title="Persona Chatbot", page_icon="🎭", layout="centered")
+st.set_page_config(
+    page_title="Persona Chatbot", page_icon="🎭", layout="centered"
+)
 
 # ---------------- Custom styling ----------------
 st.markdown(
@@ -177,7 +183,7 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# ---------------- Persona definitions (same options/logic as original) ----------------
+# ---------------- Persona definitions ----------------
 PERSONAS = {
     "1": {
         "label": "Sad Assistant",
@@ -199,76 +205,81 @@ PERSONAS = {
     },
 }
 
-# ---------------- Cached model (same init logic as original) ----------------
+
+# ---------------- Cached model ----------------
+# Pass Streamlit secret to os.environ and explicit API key parameter
+groq_key = st.secrets.get("GROQ_API_KEY") or os.getenv("GROQ_API_KEY")
+if groq_key:
+    os.environ["GROQ_API_KEY"] = groq_key
+
+# ---------------- Cached model ----------------
 @st.cache_resource
 def get_model():
     return init_chat_model(
-        "groq/compound-mini",
+        "llama-3.1-8b-instant",
         model_provider="groq",
+        api_key=groq_key,
         temperature=0.9,
     )
-
-
 model = get_model()
 
 
-# ---------------- Fix LaTeX so Streamlit renders it properly ----------------
+# ---------------- Fix LaTeX rendering ----------------
 def render_math(text: str) -> str:
-    # Convert \[ ... \] to $$ ... $$ (block math)
-    text = text.replace("\\[", "$$").replace("\\]", "$$")
-    # Convert \( ... \) to $ ... $ (inline math)
-    text = text.replace("\\(", "$").replace("\\)", "$")
-    return text
+  text = text.replace("\\[", "$$").replace("\\]", "$$")
+  text = text.replace("\\(", "$").replace("\\)", "$")
+  return text
 
 
-# ---------------- Trim history sent to the model (keeps full history for display) ----------------
-MAX_TURNS = 6  # number of most-recent Human+AI message pairs to send to the model
+# ---------------- Trim message history ----------------
+MAX_TURNS = 6
+
 
 def trimmed_messages(messages):
-    system_msgs = [m for m in messages if isinstance(m, SystemMessage)]
-    other_msgs = [m for m in messages if not isinstance(m, SystemMessage)]
-    # keep only the last MAX_TURNS*2 non-system messages (human+ai pairs)
-    other_msgs = other_msgs[-(MAX_TURNS * 2):]
-    return system_msgs + other_msgs
+  system_msgs = [m for m in messages if isinstance(m, SystemMessage)]
+  other_msgs = [m for m in messages if not isinstance(m, SystemMessage)]
+  other_msgs = other_msgs[-(MAX_TURNS * 2) :]
+  return system_msgs + other_msgs
 
 
 # ---------------- Session state ----------------
 if "persona_choice" not in st.session_state:
-    st.session_state.persona_choice = None
+  st.session_state.persona_choice = None
 if "messages" not in st.session_state:
-    st.session_state.messages = []
+  st.session_state.messages = []
 
 # ---------------- Sidebar: persona picker ----------------
 with st.sidebar:
-    st.markdown("### 🎭 Choose your assistant")
-    st.caption("Pick a personality — same as pressing 1, 2 or 3 in the CLI.")
+  st.markdown("### 🎭 Choose your assistant")
+  st.caption("Pick a personality — same as pressing 1, 2 or 3 in the CLI.")
+  st.markdown("<br>", unsafe_allow_html=True)
+
+  for key, persona in PERSONAS.items():
+    if st.button(
+        f"{persona['avatar']}  {persona['label']}",
+        use_container_width=True,
+        key=f"choose_{key}",
+    ):
+      st.session_state.persona_choice = key
+      st.session_state.messages = [SystemMessage(content=persona["system"])]
+      st.rerun()
+
+  st.markdown("<hr>", unsafe_allow_html=True)
+
+  if st.session_state.persona_choice:
+    current = PERSONAS[st.session_state.persona_choice]
+    badge_html = (
+        f'<div style="text-align:center;">'
+        f'<span class="active-badge">{current["avatar"]} Active:'
+        f' {current["label"]}</span>'
+        f"</div>"
+    )
+    st.markdown(badge_html, unsafe_allow_html=True)
     st.markdown("<br>", unsafe_allow_html=True)
-
-    for key, persona in PERSONAS.items():
-        if st.button(
-            f"{persona['avatar']}  {persona['label']}",
-            use_container_width=True,
-            key=f"choose_{key}",
-        ):
-            st.session_state.persona_choice = key
-            st.session_state.messages = [SystemMessage(content=persona["system"])]
-            st.rerun()
-
-    st.markdown("<hr>", unsafe_allow_html=True)
-
-    if st.session_state.persona_choice:
-        current = PERSONAS[st.session_state.persona_choice]
-        badge_html = (
-            f'<div style="text-align:center;">'
-            f'<span class="active-badge">{current["avatar"]} Active: {current["label"]}</span>'
-            f"</div>"
-        )
-        st.markdown(badge_html, unsafe_allow_html=True)
-        st.markdown("<br>", unsafe_allow_html=True)
-        if st.button("🔄 Restart / Switch persona", use_container_width=True):
-            st.session_state.persona_choice = None
-            st.session_state.messages = []
-            st.rerun()
+    if st.button("🔄 Restart / Switch persona", use_container_width=True):
+      st.session_state.persona_choice = None
+      st.session_state.messages = []
+      st.rerun()
 
 # ---------------- Header ----------------
 st.markdown(
@@ -281,49 +292,46 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# ---------------- Welcome / persona selection screen ----------------
+# ---------------- Welcome screen ----------------
 if not st.session_state.persona_choice:
-    st.markdown("👈 **Pick a personality from the sidebar to start chatting:**")
+  st.markdown("👈 **Pick a personality from the sidebar to start chatting:**")
 
-    cards = []
-    for persona in PERSONAS.values():
-        cards.append(
-            '<div class="persona-card">'
-            f'<span class="persona-emoji">{persona["avatar"]}</span>'
-            f'<span class="persona-title">{persona["label"]}</span>'
-            f'<div class="persona-desc">{persona["desc"]}</div>'
-            "</div>"
-        )
-    cards_html = '<div class="persona-grid">' + "".join(cards) + "</div>"
+  cards = []
+  for persona in PERSONAS.values():
+    cards.append(
+        '<div class="persona-card">'
+        f'<span class="persona-emoji">{persona["avatar"]}</span>'
+        f'<span class="persona-title">{persona["label"]}</span>'
+        f'<div class="persona-desc">{persona["desc"]}</div>'
+        "</div>"
+    )
+  cards_html = '<div class="persona-grid">' + "".join(cards) + "</div>"
 
-    st.markdown(cards_html, unsafe_allow_html=True)
-    st.stop()
+  st.markdown(cards_html, unsafe_allow_html=True)
+  st.stop()
 
 avatar = PERSONAS[st.session_state.persona_choice]["avatar"]
 
-# ---------------- Render chat history (skip SystemMessage) ----------------
+# ---------------- Render chat history ----------------
 for msg in st.session_state.messages:
-    if isinstance(msg, HumanMessage):
-        with st.chat_message("user", avatar="🧑"):
-            st.markdown(render_math(msg.content))
-    elif isinstance(msg, AIMessage):
-        with st.chat_message("assistant", avatar=avatar):
-            st.markdown(render_math(msg.content))
+  if isinstance(msg, HumanMessage):
+    with st.chat_message("user", avatar="🧑"):
+      st.markdown(render_math(msg.content))
+  elif isinstance(msg, AIMessage):
+    with st.chat_message("assistant", avatar=avatar):
+      st.markdown(render_math(msg.content))
 
-# ---------------- Chat input (replaces input()/exit loop) ----------------
+# ---------------- Chat input ----------------
 prompt = st.chat_input("Type your message here...")
 
 if prompt:
-    # Same as: message.append(HumanMessage(content=prompt))
-    st.session_state.messages.append(HumanMessage(content=prompt))
-    with st.chat_message("user", avatar="🧑"):
-        st.markdown(render_math(prompt))
+  st.session_state.messages.append(HumanMessage(content=prompt))
+  with st.chat_message("user", avatar="🧑"):
+    st.markdown(render_math(prompt))
 
-    # Same as: response = model.invoke(message)
-    with st.chat_message("assistant", avatar=avatar):
-        with st.spinner("Thinking..."):
-            response = model.invoke(trimmed_messages(st.session_state.messages))
-            st.markdown(render_math(response.content))
+  with st.chat_message("assistant", avatar=avatar):
+    with st.spinner("Thinking..."):
+      response = model.invoke(trimmed_messages(st.session_state.messages))
+      st.markdown(render_math(response.content))
 
-    # Same as: message.append(AIMessage(content=response.content))
-    st.session_state.messages.append(AIMessage(content=response.content))
+  st.session_state.messages.append(AIMessage(content=response.content))
