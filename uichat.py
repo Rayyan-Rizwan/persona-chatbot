@@ -1,8 +1,8 @@
 import os
-from dotenv import load_dotenv
-from langchain.chat_models import init_chat_model
-from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 import streamlit as st
+from dotenv import load_dotenv
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
+from langchain_groq import ChatGroq  # <--- Add this missing import
 
 load_dotenv()
 
@@ -217,12 +217,13 @@ if groq_key:
 # ---------------- Cached Model ----------------
 @st.cache_resource
 def get_model():
-    # Use exact valid model string directly
+    groq_key = st.secrets.get("GROQ_API_KEY") or os.getenv("GROQ_API_KEY")
     return ChatGroq(
-        model="llama-3.3-70b-versatile",  # Or "llama-3.1-8b-instant"
+        model="llama-3.3-70b-versatile",
         temperature=0.7,
         api_key=groq_key,
     )
+
 
 model = get_model()
 
