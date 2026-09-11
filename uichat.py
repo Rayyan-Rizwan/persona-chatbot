@@ -208,21 +208,23 @@ PERSONAS = {
 
 # ---------------- Cached model ----------------
 # Pass Streamlit secret to os.environ and explicit API key parameter
+# Extract API key safely from Streamlit secrets or local environment
 groq_key = st.secrets.get("GROQ_API_KEY") or os.getenv("GROQ_API_KEY")
 if groq_key:
     os.environ["GROQ_API_KEY"] = groq_key
 
-# ---------------- Cached model ----------------
+
+# ---------------- Cached Model ----------------
 @st.cache_resource
 def get_model():
-    return init_chat_model(
-        "llama-3.1-8b-instant",
-        model_provider="groq",
+    # Use exact valid model string directly
+    return ChatGroq(
+        model="llama-3.3-70b-versatile",  # Or "llama-3.1-8b-instant"
+        temperature=0.7,
         api_key=groq_key,
-        temperature=0.9,
     )
-model = get_model()
 
+model = get_model()
 
 # ---------------- Fix LaTeX rendering ----------------
 def render_math(text: str) -> str:
