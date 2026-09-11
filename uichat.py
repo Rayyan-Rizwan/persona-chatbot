@@ -1,8 +1,7 @@
 import os
 import streamlit as st
 from dotenv import load_dotenv
-from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
-from langchain_groq import ChatGroq  # <--- Add this missing import
+from langchain_groq import ChatGroq
 
 load_dotenv()
 
@@ -208,14 +207,17 @@ PERSONAS = {
 
 # ---------------- Cached model ----------------
 # Extract key from Streamlit secrets or local environment
+# Extract API key safely from Streamlit secrets or environment
 groq_key = st.secrets.get("GROQ_API_KEY") or os.getenv("GROQ_API_KEY")
+if groq_key:
+    os.environ["GROQ_API_KEY"] = groq_key
 
-
-# ---------------- Cached Model ----------------
+# ---------------- Cached Model Initialization ----------------
 @st.cache_resource
 def get_model():
+    # Primary model: Llama 3.3 70B (Or set to "groq/compound-mini" if using Compound systems)
     return ChatGroq(
-        model="llama-3.3-70b-versatile",  # Exact valid model ID
+        model="llama-3.3-70b-versatile",
         temperature=0.7,
         api_key=groq_key,
     )
